@@ -1,0 +1,9 @@
+[package]
+name = "RPIs_rust"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+evdev-rs = "0.6.0"
+rppal = "0.19.0"
+serialport = "4.6.0"
