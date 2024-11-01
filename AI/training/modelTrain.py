@@ -1,5 +1,4 @@
 print("Importing nessesary modules...")
-import shutil
 import customtkinter as ctk
 from CTkListbox import *
 import tkinter as tk
@@ -66,6 +65,7 @@ class modelTrainUI(ctk.CTk):
         self.data_processor = None
         self.current_queue_item = None
         self.stop_training = False
+        self.model_dir = None
         
         self.model_name = tk.StringVar()
         self.keep_config_var = tk.BooleanVar()
@@ -191,7 +191,8 @@ class modelTrainUI(ctk.CTk):
             "model_name": self.model_name.get(),
             "save_as_h5": self.save_as_h5.get(),
             "save_as_tflite": self.save_as_tflite.get(),
-            "save_with_model_config": self.save_with_model_config.get()
+            "save_with_model_config": self.save_with_model_config.get(),
+            "model_dir": self.model_dir
         }
         
         with open(self.configuration_path_global, "w") as f:
@@ -211,6 +212,7 @@ class modelTrainUI(ctk.CTk):
                 self.save_as_h5.set(file_content.get("save_as_h5"))
                 self.save_as_tflite.set(file_content.get("save_as_tflite"))
                 self.save_with_model_config.set(file_content.get("save_with_model_config"))
+                self.model_dir = file_content.get("model_dir")
         except:
             answer = messagebox.askyesno("Error", "The necessary files are not found. Do you want to delete the configuration file (yes) or exit (no) ?")
             if answer:
@@ -243,6 +245,10 @@ class modelTrainUI(ctk.CTk):
             self.data_processor.load_training_data_wrapper(self.selected_training_data_path)
         if self.selected_model_configuration_path:
             self.data_processor.load_model_configuration(self.selected_model_configuration_path)
+            
+        if self.model_dir:
+            self.select_output_directory_button.configure(fg_color="#1F6AA5")
+            self.select_output_directory_button.configure(text=f"{os.path.basename(self.model_dir)}")
 
     def handle_save_model_configuration(self, advanced=False):
         if self.keep_config_var_global.get():
@@ -293,11 +299,25 @@ class modelTrainUI(ctk.CTk):
         
         ############################################################################################################
         
+        self.in_config_settings_frame = ctk.CTkFrame(self.queue_item_frame)
+        self.in_config_settings_frame.pack(padx=15, pady=(10, 0), anchor='n', expand=False, fill='x')
+        
+        self.in_config_settings_frame.grid_rowconfigure(0, weight=1)
+        self.in_config_settings_frame.grid_columnconfigure(0, weight=1, uniform='settings')
+        self.in_config_settings_frame.grid_columnconfigure(1, weight=1, uniform='settings')
+        
         settings_image = Image.open(r"AI/assets/settings.png")
         settings_image = ctk.CTkImage(settings_image, settings_image, (25, 25))
         
-        self.settings_button = ctk.CTkButton(self.queue_item_frame, image=settings_image, command=self.open_settings, text="Settings", width=25, height=25, corner_radius=5,  bg_color='transparent')
-        self.settings_button.pack(padx=15, pady=(10, 0), anchor='n', expand=True, fill='x', side=tk.TOP) 
+        self.in_config_settings_button = ctk.CTkButton(self.in_config_settings_frame, image=settings_image, command=self.open_settings, text="Settings", width=25, height=25, corner_radius=5,  bg_color='transparent')
+        self.in_config_settings_button.grid(row=0, column=0, padx=(5, 2), pady=(5, 5), sticky='we')
+        
+        open_directory_image = Image.open(r"AI/assets/folder_open.png")
+        open_directory_image = ctk.CTkImage(open_directory_image, open_directory_image, (25, 25))
+        
+        self.select_output_directory_button = ctk.CTkButton(self.in_config_settings_frame, text="Select Output Directory", command=self.select_output_directory, corner_radius=5, image=open_directory_image, width=25, height=25, bg_color='transparent')
+        self.select_output_directory_button.grid(row=0, column=1, padx=(2, 5), pady=(5, 5), sticky='we')
+        self.select_output_directory_button.configure(fg_color='#0c5743')
         
         ############################################################################################################
         
@@ -456,8 +476,6 @@ class modelTrainUI(ctk.CTk):
         self.credit_logo = ctk.CTkImage(light_image, dark_image, size=(90, 90))
         self.credit_logo_label = ctk.CTkLabel(self.credit_frame, image=self.credit_logo, text="", corner_radius=5, padx=10, pady=10)
         self.credit_logo_label.pack(padx=15, pady=10, side='right')
-        
-        self.bind("<Configure>", self.on_resize)
         
     def create_information_frame(self):
         self.information_frame.grid_rowconfigure(0, weight=1)
@@ -687,7 +705,6 @@ class modelTrainUI(ctk.CTk):
         save_a_tflite_model = self.save_as_tflite.get()
         save_with_model_config = self.save_with_model_config.get()
         
-        self.model_dir = None
         model_dir = self.model_dir
         
         self.data_processor.pass_training_options(self.data_visualizer, 
@@ -788,23 +805,13 @@ class modelTrainUI(ctk.CTk):
         self.post_training(queue)
     
     def pre_training(self):
-        try:
-            self.toggle_button_state(self.start_queue_button, False)
-            self.toggle_button_state(self.queue_clear_button, False)
-            self.toggle_button_state(self.queue_delete_button, False)
-            self.toggle_button_state(self.queue_details_button, False)
-            
-            self.toggle_button_state(self.skip_queue_item_button, True)
-            self.toggle_button_state(self.stop_queue_button, True)
-            
-        except tk.TclError:
-            
-            if DEBUG:
-                print("TclError occurred, handled by except block")
-            
+        while True:
             try:
                 self.update()
-                time.sleep(0.2)
+                self.update_idletasks()
+            
+                time.sleep(0.1)
+                
                 self.toggle_button_state(self.start_queue_button, False)
                 self.toggle_button_state(self.queue_clear_button, False)
                 self.toggle_button_state(self.queue_delete_button, False)
@@ -813,9 +820,12 @@ class modelTrainUI(ctk.CTk):
                 self.toggle_button_state(self.skip_queue_item_button, True)
                 self.toggle_button_state(self.stop_queue_button, True)
                 
+                break
+                
             except tk.TclError:
-                messagebox.showerror("Error", "Weird error occurred. Please restart the application.")
-                return
+                self.update()
+                pass
+            
     
     def post_training(self, queue):
         self.stop_training = False
@@ -833,6 +843,13 @@ class modelTrainUI(ctk.CTk):
         
         self.toggle_button_state(self.skip_queue_item_button, False)
         self.toggle_button_state(self.stop_queue_button, False)
+        
+        #fix listbox having double the items after training
+        self.queue_listbox.delete(0, tk.END)
+        
+        for item in self.queue:
+            self.queue_listbox.insert(tk.END, item.custom_model_name)
+            
         
     def skip_queue_item(self):
         if self.current_queue_item is None:
@@ -886,11 +903,17 @@ class modelTrainUI(ctk.CTk):
         # self.settings_window.focus_force()
         self.focus_window(self.settings_window)
         
-    def on_resize(self, event):
-        pass
-        # parent_width = self.winfo_width()
-        # button_width = self.settings_button.winfo_reqwidth()
-        # self.settings_button.place(x=parent_width - button_width - 10, y=10)
+    def select_output_directory(self):
+        path = filedialog.askdirectory()
+        
+        if path == "" or not path:
+            return
+        
+        self.model_dir = path
+        self.select_output_directory_button.configure(text=f"{os.path.basename(path)}")
+        self.select_output_directory_button.configure(fg_color="#1F6AA5")
+        
+        self.handle_save_model_configuration()
         
     def save_settings(self, exit=False):
         settings = self.settings
@@ -930,6 +953,15 @@ class modelTrainUI(ctk.CTk):
         
         if not self.queue:
             return
+        
+        if DEBUG:
+            try:
+                print("Selected index", selected_index)
+                #print the listbox content
+                for i in range(self.queue_listbox.size()):
+                    print(self.queue_listbox.get(i))
+            except Exception as e:
+                print(e)
         
         index = selected_index
         self.queue.pop(index)
@@ -992,7 +1024,7 @@ class DataProcessor:
         self.model_file_content = None
         self.model_function = None
         
-        self.checkpoint_filename = None
+        self.model_base_filename = None
         self.model_dir = None
         
         self.selected_training_data_path = None
@@ -1062,18 +1094,19 @@ class DataProcessor:
         
         early_stopping = EarlyStopping(monitor='val_loss', patience=patience)
         
-        if self.model_dir:
-            self.checkpoint_filename = os.path.join(self.model_dir, f"best_model_{self.model_name}")
-        else:
-            self.checkpoint_filename = f"best_model_{self.model_name}"
+        
+        self.generate_checkpoint_filename()
+        
+        self.check_dir_preparedness()
             
-        self.h5_model_path = f"{self.checkpoint_filename}.h5"
+        self.h5_model_path = f"{self.model_base_filename}.h5"
         
         model_checkpoint = ModelCheckpoint(self.h5_model_path, monitor='val_loss', save_best_only=True)
         
         data_callback = TrainingDataCallback(self.modelTrainUI, self.data_visualizer, self, epochs_graphed=self.epochs_graphed)
         
         stop_training_callback = StopTrainingCallback(self)
+        
         
         history = self.model.fit(
             [self.lidar_train, self.image_train, self.counter_train], self.controller_train,
@@ -1083,22 +1116,57 @@ class DataProcessor:
             batch_size=batch_size
         )
         
+        
         if self.save_a_tflite_model:
             print(f"Converting model {self.model_name} to tflite")
-            self.tflite_model_path = f"{self.checkpoint_filename}.tflite"
+            self.tflite_model_path = f"{self.model_base_filename}.tflite"
             
-            self.convert_to_tflite_model(f"{self.checkpoint_filename}.h5", self.tflite_model_path)
+            self.convert_to_tflite_model(f"{self.model_base_filename}.h5", self.tflite_model_path)
         
         if not self.save_a_h5_model:
-            os.remove(self.checkpoint_filename)
+            os.remove(self.h5_model_path)
             
         if self.save_with_model_config:
-            model_config_path = f"{self.checkpoint_filename}_config.json"
+            model_config_path = f"{self.model_base_filename}_config.py"
             
-            # just copy the file from self.selected_model_configuration_path to the model_dir
-            shutil.copy(self.selected_model_configuration_path, model_config_path)
+            with open(model_config_path, "w") as f:
+                f.write(self.model_file_content)
         
         print(f"Model {self.model_name} trained successfully")
+        
+    def check_dir_preparedness(self):
+        while self.model_base_path and os.path.exists(self.model_base_path):
+            if os.path.exists(f"{self.model_base_filename}.h5") or os.path.exists(f"{self.model_base_filename}.tflite") or os.path.exists(f"{self.model_base_filename}_config.py"):
+                answer = messagebox.askyesno("Warning", "The model directory already exists in the main folder. The contents are going to be replaced, otherwise a reselection of the main folder is needed")
+            else:
+                answer = True
+                
+            if answer:
+                if os.path.exists(f"{self.model_base_filename}.h5"):
+                    os.remove(f"{self.model_base_filename}.h5")
+                if os.path.exists(f"{self.model_base_filename}.tflite"):
+                    os.remove(f"{self.model_base_filename}.tflite")
+                if os.path.exists(f"{self.model_base_filename}_config.py"):
+                    os.remove(f"{self.model_base_filename}_config.py")
+                break
+            else:
+                new_dir = None
+                while not new_dir:
+                    new_dir = filedialog.askdirectory()
+                if new_dir and new_dir != "":
+                    self.model_dir = new_dir
+                    self.generate_checkpoint_filename()
+        
+        if self.model_base_path and not os.path.exists(self.model_base_path):
+            os.makedirs(self.model_base_path)
+            
+    def generate_checkpoint_filename(self):
+        if self.model_dir:
+            self.model_base_path = os.path.join(self.model_dir, f"best_model_{self.model_name}")
+            self.model_base_filename = os.path.join(self.model_base_path, f"best_model_{self.model_name}")
+        else:
+            self.model_base_path = f"best_model_{self.model_name}"
+            self.model_base_filename = os.path.join(self.model_base_path, f"best_model_{self.model_name}")
         
     def convert_to_tflite_model(self, model_path, output_path):
         model = tf.keras.models.load_model(model_path)
